@@ -1844,8 +1844,6 @@ def download_excel():
 
     # ── Sheet 2: Base Year Emissions ──────────────────────────────────────
     ws2 = wb.create_sheet("Base Year Emissions")
-    for col, w in zip("ABCD", [30, 28, 20, 15]):
-        ws2.column_dimensions[chr(ord("A")+["ABCD".index(c) for c in "ABCD"][["ABCD".index(c) for c in "ABCD"].index(col.replace(col,col))])].width = w
     ws2.column_dimensions["A"].width = 28
     ws2.column_dimensions["B"].width = 28
     ws2.column_dimensions["C"].width = 20
