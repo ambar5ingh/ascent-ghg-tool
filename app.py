@@ -902,41 +902,43 @@ def calc_buildings(d):
             total += calc_fuel_emission(val, None, ef_key)
         return total
 
+    # Form field names use lowercase suffixes: res_elec, res_lpg, res_firewood, etc.
     subs["Residential"] = sector_emit("res", [
-        ("Electricity", "Res_Electricity"),
-        ("LPG",         "Res_LPG"),
-        ("Firewood",    "Res_Firewood"),
-        ("Kerosene",    "Res_Kerosene"),
-        ("PNG",         "Res_PNG"),
-        ("Coal",        "Res_Coal"),
+        ("elec",     "Res_Electricity"),
+        ("lpg",      "Res_LPG"),
+        ("firewood", "Res_Firewood"),
+        ("kero",     "Res_Kerosene"),
+        ("png",      "Res_PNG"),
+        ("coal",     "Res_Coal"),
+        ("dg",       "Res_Diesel_Genset"),
     ])
     subs["Commercial"] = sector_emit("com", [
-        ("Electricity", "Com_Electricity"),
-        ("LPG",         "Com_LPG"),
-        ("PNG",         "Com_PNG"),
-        ("Firewood",    "Com_Firewood"),
-        ("Kerosene",    "Com_Kerosene"),
+        ("elec",     "Com_Electricity"),
+        ("lpg",      "Com_LPG"),
+        ("png",      "Com_PNG"),
+        ("firewood", "Com_Firewood"),
+        ("kero",     "Com_Kerosene"),
     ])
     subs["Public & Institutional"] = sector_emit("ins", [
-        ("Electricity", "Ins_Electricity"),
-        ("LPG",         "Ins_LPG"),
+        ("elec", "Ins_Electricity"),
+        ("lpg",  "Ins_LPG"),
     ])
     subs["Industrial"] = sector_emit("ind", [
-        ("Electricity", "Ind_Electricity"),
-        ("LPG",         "Ind_LPG"),
-        ("Coal",        "Ind_Coal"),
-        ("Diesel",      "Ind_Diesel"),
-        ("PNG",         "Ind_PNG"),
+        ("elec",   "Ind_Electricity"),
+        ("lpg",    "Ind_LPG"),
+        ("coal",   "Ind_Coal"),
+        ("diesel", "Ind_Diesel"),
+        ("natgas", "Ind_NatGas"),
     ])
 
-    # Energy Industries (on-site generation)
-    ng_tj  = float(d.get("ng_tj", 0) or 0)
-    coal_tj= float(d.get("coal_tj", 0) or 0)
-    msw_pw = float(d.get("msw_pw", 0) or 0)    # MW installed for MSW
-    # Coal: tCO2e = coal_tj * (CO2+CH4+N2O)
-    egen_coal = coal_tj * (EF["EGen_Coal"]["co2"] + EF["EGen_Coal"]["ch4"] + EF["EGen_Coal"]["n2o"])
-    egen_gas  = ng_tj   * (EF["EGen_NatGas"]["co2"] + EF["EGen_NatGas"]["ch4"] + EF["EGen_NatGas"]["n2o"])
-    subs["Energy Generation"] = egen_coal + egen_gas
+    # Energy Industries (on-site generation) — form uses: egen_coal, egen_natgas, egen_diesel
+    egen_coal_tj   = float(d.get("egen_coal",   0) or 0)
+    egen_natgas_tj = float(d.get("egen_natgas", 0) or 0)
+    egen_diesel_tj = float(d.get("egen_diesel", 0) or 0)
+    e_coal   = egen_coal_tj   * (EF["EGen_Coal"]["co2"]   + EF["EGen_Coal"]["ch4"]   + EF["EGen_Coal"]["n2o"])
+    e_gas    = egen_natgas_tj * (EF["EGen_NatGas"]["co2"] + EF["EGen_NatGas"]["ch4"] + EF["EGen_NatGas"]["n2o"])
+    e_diesel = egen_diesel_tj * (EF["EGen_Diesel"]["co2"] + EF["EGen_Diesel"]["ch4"] + EF["EGen_Diesel"]["n2o"])
+    subs["Energy Generation"] = e_coal + e_gas + e_diesel
 
     return subs
 
@@ -950,34 +952,35 @@ def calc_transport(d):
     subs = {}
 
     def road_emit():
-        # Petrol (kl) → TJ
-        pet_kl = float(d.get("t_pet", 0) or 0)
+        # Petrol (kl) → TJ — form name: t_petrol
+        pet_kl = float(d.get("t_petrol", 0) or 0)
         pet_tj = pet_kl * FUEL_CONV["Petrol"]["kl_to_tj"]
         e_pet  = pet_tj * ef_total_transport("Trans_Petrol")
 
-        # Diesel (kl) → TJ
-        die_kl = float(d.get("t_die", 0) or 0)
+        # Diesel (kl) → TJ — form name: t_diesel
+        die_kl = float(d.get("t_diesel", 0) or 0)
         die_tj = die_kl * FUEL_CONV["Diesel"]["kl_to_tj"]
         e_die  = die_tj * ef_total_transport("Trans_Diesel")
 
-        # CNG (tonne) → TJ
+        # CNG (tonne) → TJ — form name: t_cng
         cng_t  = float(d.get("t_cng", 0) or 0)
         cng_tj = cng_t  * FUEL_CONV["CNG"]["t_to_tj"]
         e_cng  = cng_tj * ef_total_transport("Trans_CNG")
 
-        # Auto LPG (tonne) → TJ
-        alpg_t = float(d.get("t_alpg", 0) or 0)
+        # Auto LPG (tonne) → TJ — form name: t_lpg
+        alpg_t = float(d.get("t_lpg", 0) or 0)
         alpg_tj= alpg_t * FUEL_CONV["AutoLPG"]["t_to_tj"]
         e_alpg = alpg_tj * ef_total_transport("Trans_AutoLPG")
 
-        # Electricity (MWh)
+        # Electricity (MWh) — form name: t_elec
         elec_mwh = float(d.get("t_elec", 0) or 0)
         e_elec   = elec_mwh * EF["Trans_Electricity"]["co2"]
 
         return e_pet + e_die + e_cng + e_alpg + e_elec
 
     def rail_emit():
-        die_kl  = float(d.get("r_die", 0) or 0)
+        # form names: r_diesel, r_elec
+        die_kl  = float(d.get("r_diesel", 0) or 0)
         die_tj  = die_kl * FUEL_CONV["Diesel"]["kl_to_tj"]
         e_die   = die_tj * ef_total_transport("Trans_Diesel")
         elec_mwh= float(d.get("r_elec", 0) or 0)
@@ -1133,12 +1136,15 @@ def calc_afolu(d):
     total_manure  = 0.0
 
     livestock_map = {
-        "dairy_cow":   ("af_dc",  "dairy_cow_indigenous"),
-        "nondairy_cow":("af_ndc", "nondairy_cow_adult"),
-        "buffalo_d":   ("af_bufd","dairy_buffalo"),
-        "buffalo_nd":  ("af_bufnd","dairy_cow_indigenous"),
-        "sheep":       ("af_sheep","sheep"),
-        "goat":        ("af_goat","goat"),
+        # (form_field_name, ef_key)
+        "dairy_cow_indigenous": ("dairy_cow_indigenous",  "dairy_cow_indigenous"),
+        "dairy_cow_crossbred":  ("dairy_cow_crossbred",   "dairy_cow_crossbred"),
+        "nondairy_cow_adult":   ("nondairy_cow_adult",    "nondairy_cow_adult"),
+        "dairy_buffalo":        ("dairy_buffalo",          "dairy_buffalo"),
+        "sheep":                ("sheep",                  "sheep"),
+        "goat":                 ("goat",                   "goat"),
+        "swine":                ("swine",                  "swine"),
+        "poultry":              ("poultry",                "poultry"),
     }
     for ltype, (form_key, ef_key) in livestock_map.items():
         heads = float(d.get(form_key, 0) or 0)
@@ -1152,21 +1158,21 @@ def calc_afolu(d):
             ch4_m_t = heads * ef_m / 1000.0
             total_manure += ch4_m_t * GWP_CH4
 
-    # Wetland rice CH4 (simple: area × EF)
-    wet_ha = float(d.get("af_wet", 0) or 0)
+    # Wetland rice CH4 — form field: paddy_ha
+    wet_ha = float(d.get("paddy_ha", 0) or 0)
     # IPCC default EF: 1.3 kgCH4/ha/day, 120 day season
     ch4_wet_t = wet_ha * 1.3 * 120 / 1000.0 if wet_ha > 0 else 0.0
     total_wetland = ch4_wet_t * GWP_CH4
 
-    # Forestland CO2 sequestration (negative emissions)
-    forest_ha = float(d.get("af_fd", 0) or 0)
+    # Forestland CO2 sequestration — form field: green_ha
+    forest_ha = float(d.get("green_ha", 0) or 0)
     # Average growth 5 tCO2/ha/yr for tropical moist (IPCC Tier 1)
     seq_forest = -forest_ha * 5.0 if forest_ha > 0 else 0.0
 
-    # Grassland / managed land (simplified)
-    grass_ha  = float(d.get("af_fm", 0) or 0)
-    other_ha  = float(d.get("af_fo", 0) or 0)
-    seq_land   = -(grass_ha + other_ha) * 1.5 if (grass_ha + other_ha) > 0 else 0.0
+    # Grassland / managed land (simplified) — no specific form fields, default 0
+    grass_ha  = 0.0
+    other_ha  = 0.0
+    seq_land   = 0.0
 
     return {
         "Live Stock":          total_enteric + total_manure + total_wetland,
@@ -1183,23 +1189,23 @@ def calc_ippu(d):
     """
     subs = {}
 
-    # Cement (clinker-based, IPCC Eq 2.2 Tier 2)
-    clinker_t = float(d.get("ip_clink", 0) or 0)
-    cfrac     = float(d.get("ip_cfrac", 1.0) or 1.0)   # clinker-to-cement ratio default 1
+    # Cement (clinker-based, IPCC Eq 2.2 Tier 2) — form: cement_clinker
+    clinker_t = float(d.get("cement_clinker", 0) or 0)
     subs["Mineral Industry"] = clinker_t * IPPU_EF["cement_clinker"] + \
-                                float(d.get("ip_lime", 0) or 0) * IPPU_EF["lime_high_ca"] + \
-                                float(d.get("ip_ls", 0) or 0)   * IPPU_EF["limestone"]
+                                float(d.get("lime_high_ca", 0) or 0) * IPPU_EF["lime_high_ca"] + \
+                                float(d.get("limestone",    0) or 0) * IPPU_EF["limestone"]
 
-    # Chemical (ammonia, HNO3)
-    nh3_t   = float(d.get("ip_nh3",  0) or 0)
-    hno3_t  = float(d.get("ip_hno3", 0) or 0)
-    n2o_hno3 = hno3_t * IPPU_EF["hno3_n2o"] / 1000.0 * GWP_N2O   # tN2O → tCO2e
-    subs["Chemical Industry"] = nh3_t * IPPU_EF["ammonia"] + n2o_hno3
+    # Chemical (ammonia) — form: ammonia
+    nh3_t   = float(d.get("ammonia", 0) or 0)
+    subs["Chemical Industry"] = nh3_t * IPPU_EF["ammonia"]
 
-    # Metal (steel BOF/EAF)
-    bof_t = float(d.get("ip_bof", 0) or 0)
-    eaf_t = float(d.get("ip_eaf", 0) or 0)
-    subs["Metal Industry"] = bof_t * IPPU_EF["steel_bof"] + eaf_t * IPPU_EF["steel_eaf"]
+    # Metal (steel BOF/EAF) — form: steel_bof, steel_eaf
+    bof_t = float(d.get("steel_bof", 0) or 0)
+    eaf_t = float(d.get("steel_eaf", 0) or 0)
+    # Glass — form: glass
+    glass_t = float(d.get("glass", 0) or 0)
+    subs["Metal Industry"] = bof_t * IPPU_EF["steel_bof"] + eaf_t * IPPU_EF["steel_eaf"] + \
+                              glass_t * IPPU_EF["glass_ef"]
 
     subs["Non-Energy Products"]             = 0.0
     subs["Ozone Depleting Substances"]      = 0.0
