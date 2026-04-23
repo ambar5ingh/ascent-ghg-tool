@@ -11,7 +11,14 @@ import plotly
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 
-app = Flask(__name__)
+# Support both flat layout (all files in root alongside app.py) and standard Flask layout
+# Standard Flask layout: templates/ and static/ subdirectories
+# Flat layout (Azure default zip deploy): index.html, css, js all in same folder as app.py
+_base_dir = os.path.dirname(os.path.abspath(__file__))
+_tmpl_dir = os.path.join(_base_dir, 'templates') if os.path.isdir(os.path.join(_base_dir, 'templates')) else _base_dir
+_static_dir = os.path.join(_base_dir, 'static') if os.path.isdir(os.path.join(_base_dir, 'static')) else _base_dir
+
+app = Flask(__name__, template_folder=_tmpl_dir, static_folder=_static_dir)
 
 # ─── AR6 GWP (from GWP sheet: CH4=29.8, N2O=273) ──────────────────────────────
 GWP_CH4 = 29.8
